@@ -1,1 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pizarra · Planifica tu semana de entrenos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=Newsreader:opsz,wght@6..72,400;6..72,600&display=swap" rel="stylesheet">
+<style>
+:root{--pitch:#12301f;--pitch2:#1b4430;--chalk:#f1f3ec;--muted:#b8c5b9;--line:#e9d84b;--ink:#10231a;--err:#ffb4a8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--pitch);color:var(--chalk);font:17px/1.55 "Newsreader",Georgia,serif}
+h1,h2,h3,label,button,.tag{font-family:"Archivo",system-ui,sans-serif}
+.wrap{max-width:880px;margin:0 auto;padding:40px 20px 80px}
+h1{font-size:clamp(2.2rem,6vw,3.6rem);line-height:1;font-weight:800;margin:0 0 14px;letter-spacing:-.02em}
+.lead{color:var(--muted);max-width:56ch;margin:0 0 32px}
+form{background:var(--pitch2);border:2px solid var(--chalk);border-radius:4px;padding:24px;display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+form .full{grid-column:1/-1}
+label{display:block;font-size:.85rem;font-weight:600;margin-bottom:6px}
+input,select,textarea{width:100%;background:var(--pitch);color:var(--chalk);border:1px solid var(--muted);border-radius:3px;padding:10px;font:inherit}
+textarea{min-height:110px;resize:vertical}
+:focus-visible{outline:3px solid var(--line);outline-offset:2px}
+button{background:var(--line);color:var(--ink);border:0;border-radius:3px;padding:14px 22px;font-weight:800;font-size:1rem;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
+.ghost{background:transparent;color:var(--chalk);border:1px solid var(--chalk);padding:10px 16px;font-weight:600}
+#status{margin:20px 0;color:var(--muted)}
+#status.error{color:var(--err)}
+.week{border-left:4px solid var(--line);padding-left:16px;margin:40px 0 24px}
+.week h2{margin:0 0 4px;font-size:1.4rem}
+.session{border:2px solid var(--chalk);border-radius:4px;margin:0 0 28px;background:var(--pitch2)}
+.session>header{padding:18px 22px;border-bottom:2px solid var(--chalk);background:var(--chalk);color:var(--ink)}
+.session>header h3{margin:0;font-size:1.3rem}
+.session>header p{margin:4px 0 0}
+.block{padding:18px 22px;border-bottom:1px solid rgba(241,243,236,.25)}
+.block:last-child{border-bottom:0}
+.block h4{margin:0 0 6px;font:800 1.05rem "Archivo",sans-serif}
+.tag{display:inline-block;background:var(--line);color:var(--ink);font-size:.8rem;font-weight:800;padding:2px 8px;border-radius:3px;margin-left:8px}
+.block h5{margin:12px 0 4px;font:600 .9rem "Archivo",sans-serif;color:var(--line)}
+ul{margin:0;padding-left:20px}
+.fix{background:rgba(233,216,75,.1)}
+.actions{display:flex;gap:10px;margin:0 0 20px}
+@media(max-width:600px){form{grid-template-columns:1fr}}
+@media print{body{background:#fff;color:#000}.session,.session>header,.block{background:#fff;color:#000;border-color:#999}form,.actions,#status,.lead{display:none}.tag{border:1px solid #000;background:#fff;color:#000}.block h5{color:#000}.session{break-inside:avoid-page}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1>Cuéntanos la semana. Te montamos los entrenos.</h1>
+  <p class="lead">Escribe qué quieres trabajar y recibe cada sesión completa: ejercicios, organización, reglas y los errores que vas a tener que corregir.</p>
+
+  <form id="f">
+    <div><label for="categoria">Categoría</label><input id="categoria" placeholder="Ej: Infantil, Cadete, Senior…" required></div>
+    <div><label for="formato">Formato</label>
+      <select id="formato"><option>Fútbol 7</option><option>Fútbol 11</option><option>Fútbol 8</option><option>Fútbol sala</option><option>Fútbol 5</option></select></div>
+    <div><label for="jugadores">Jugadores disponibles</label><input id="jugadores" type="number" min="4" max="40" value="14"></div>
+    <div><label for="nivel">Nivel</label>
+      <select id="nivel"><option>Medio</option><option>Iniciación</option><option>Alto</option></select></div>
+    <div><label for="entrenos">Entrenos esta semana</label>
+      <select id="entrenos"><option>2</option><option selected>3</option><option>4</option><option>5</option></select></div>
+    <div><label for="duracion">Duración de cada entreno (min)</label><input id="duracion" type="number" min="30" max="150" step="5" value="90"></div>
+    <div class="full"><label for="contenidos">¿Qué quieres trabajar esta semana?</label>
+      <textarea id="contenidos" required placeholder="Ej: balones a la espalda de la defensa, salida de balón de 3 en fútbol 7 y distintas situaciones de juego"></textarea></div>
+    <div class="full"><label for="notas">Algo más que debamos saber (opcional)</label>
+      <input id="notas" placeholder="Ej: campo pequeño, solo 6 conos, dos porteros lesionados…"></div>
+    <div class="full"><button id="btn" type="submit">Crear entrenos de la semana</button></div>
+  </form>
+
+  <div id="status" role="status" aria-live="polite"></div>
+  <div id="out"></div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const list = (arr, title) => arr && arr.length ? `<h5>${title}</h5><ul>${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+
+function render(d) {
+  const w = d.semana || {};
+  let html = `<div class="actions"><button class="ghost" onclick="window.print()">Imprimir o guardar PDF</button></div>
+  <div class="week"><h2>${esc(w.objetivo)}</h2><p>${esc(w.enfoque)}</p></div>`;
+  (d.sesiones || []).forEach((s, i) => {
+    const c = s.calentamiento || {}, j = s.juego_final || {}, v = s.vuelta_calma || {};
+    html += `<article class="session">
+      <header><h3>Entreno ${i + 1}: ${esc(s.titulo)}<span class="tag">${esc(s.duracion_total_min)} min</span></h3><p>${esc(s.objetivo)}</p></header>
+      <section class="block"><h4>Calentamiento: ${esc(c.nombre)}<span class="tag">${esc(c.duracion_min)} min</span></h4><p>${esc(c.descripcion)}</p></section>
+      ${(s.parte_principal || []).map((e) => `<section class="block"><h4>${esc(e.nombre)}<span class="tag">${esc(e.duracion_min)} min</span></h4>
+        <h5>Organización</h5><p>${esc(e.organizacion)}</p><h5>Desarrollo</h5><p>${esc(e.descripcion)}</p>
+        ${list(e.reglas, "Reglas")}${list(e.progresiones, "Progresiones")}${list(e.correcciones, "Qué corregir")}</section>`).join("")}
+      <section class="block"><h4>Juego final: ${esc(j.nombre)}<span class="tag">${esc(j.duracion_min)} min</span></h4><p>${esc(j.descripcion)}</p>${list(j.reglas, "Reglas")}</section>
+      <section class="block"><h4>Vuelta a la calma<span class="tag">${esc(v.duracion_min)} min</span></h4><p>${esc(v.descripcion)}</p></section>
+      <section class="block fix">${list(s.consignas_clave, "Consignas clave para los jugadores")}${list(s.errores_a_corregir, "Errores a corregir en esta sesión")}</section>
+    </article>`;
+  });
+  $("out").innerHTML = html;
+}
+
+$("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const st = $("status"), btn = $("btn");
+  st.className = ""; st.textContent = "Preparando tus entrenos. Tarda hasta un minuto…";
+  btn.disabled = true; $("out").innerHTML = "";
+  try {
+    const body = Object.fromEntries(["categoria", "formato", "jugadores", "nivel", "entrenos", "duracion", "contenidos", "notas"].map((k) => [k, $(k).value]));
+    const r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Error inesperado");
+    st.textContent = ""; render(data);
+    $("out").scrollIntoView({ behavior: "smooth" });
+  } catch (err) {
+    st.className = "error"; st.textContent = err.message;
+  } finally { btn.disabled = false; }
+});
+</script>
+</body>
+</html>
 
