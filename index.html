@@ -74,43 +74,45 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const list = (arr, title) => arr && arr.length ? `<h5>${title}</h5><ul>${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
 
-function render(d) {
-  const w = d.semana || {};
-  let html = `<div class="actions"><button class="ghost" onclick="window.print()">Imprimir o guardar PDF</button></div>
-  <div class="week"><h2>${esc(w.objetivo)}</h2><p>${esc(w.enfoque)}</p></div>`;
-  (d.sesiones || []).forEach((s, i) => {
-    const c = s.calentamiento || {}, j = s.juego_final || {}, v = s.vuelta_calma || {};
-    html += `<article class="session">
-      <header><h3>Entreno ${i + 1}: ${esc(s.titulo)}<span class="tag">${esc(s.duracion_total_min)} min</span></h3><p>${esc(s.objetivo)}</p></header>
-      <section class="block"><h4>Calentamiento: ${esc(c.nombre)}<span class="tag">${esc(c.duracion_min)} min</span></h4><p>${esc(c.descripcion)}</p></section>
-      ${(s.parte_principal || []).map((e) => `<section class="block"><h4>${esc(e.nombre)}<span class="tag">${esc(e.duracion_min)} min</span></h4>
-        <h5>Organización</h5><p>${esc(e.organizacion)}</p><h5>Desarrollo</h5><p>${esc(e.descripcion)}</p>
-        ${list(e.reglas, "Reglas")}${list(e.progresiones, "Progresiones")}${list(e.correcciones, "Qué corregir")}</section>`).join("")}
-      <section class="block"><h4>Juego final: ${esc(j.nombre)}<span class="tag">${esc(j.duracion_min)} min</span></h4><p>${esc(j.descripcion)}</p>${list(j.reglas, "Reglas")}</section>
-      <section class="block"><h4>Vuelta a la calma<span class="tag">${esc(v.duracion_min)} min</span></h4><p>${esc(v.descripcion)}</p></section>
-      <section class="block fix">${list(s.consignas_clave, "Consignas clave para los jugadores")}${list(s.errores_a_corregir, "Errores a corregir en esta sesión")}</section>
-    </article>`;
-  });
-  $("out").innerHTML = html;
-}
+const sessionHTML = (s, i) => {
+  const c = s.calentamiento || {}, j = s.juego_final || {}, v = s.vuelta_calma || {};
+  return `<article class="session">
+    <header><h3>Entreno ${i + 1}: ${esc(s.titulo)}<span class="tag">${esc(s.duracion_total_min)} min</span></h3><p>${esc(s.objetivo)}</p></header>
+    <section class="block"><h4>Calentamiento: ${esc(c.nombre)}<span class="tag">${esc(c.duracion_min)} min</span></h4><p>${esc(c.descripcion)}</p></section>
+    ${(s.parte_principal || []).map((e) => `<section class="block"><h4>${esc(e.nombre)}<span class="tag">${esc(e.duracion_min)} min</span></h4>
+      <h5>Organización</h5><p>${esc(e.organizacion)}</p><h5>Desarrollo</h5><p>${esc(e.descripcion)}</p>
+      ${list(e.reglas, "Reglas")}${list(e.progresiones, "Progresiones")}${list(e.correcciones, "Qué corregir")}</section>`).join("")}
+    <section class="block"><h4>Juego final: ${esc(j.nombre)}<span class="tag">${esc(j.duracion_min)} min</span></h4><p>${esc(j.descripcion)}</p>${list(j.reglas, "Reglas")}</section>
+    <section class="block"><h4>Vuelta a la calma<span class="tag">${esc(v.duracion_min)} min</span></h4><p>${esc(v.descripcion)}</p></section>
+    <section class="block fix">${list(s.consignas_clave, "Consignas clave para los jugadores")}${list(s.errores_a_corregir, "Errores a corregir en esta sesión")}</section>
+  </article>`;
+};
 
 $("f").addEventListener("submit", async (e) => {
   e.preventDefault();
   const st = $("status"), btn = $("btn");
-  st.className = ""; st.textContent = "Preparando tus entrenos. Tarda hasta un minuto…";
-  btn.disabled = true; $("out").innerHTML = "";
-  try {
-    const body = Object.fromEntries(["categoria", "formato", "jugadores", "nivel", "entrenos", "duracion", "contenidos", "notas"].map((k) => [k, $(k).value]));
-    const r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error || "Error inesperado");
-    st.textContent = ""; render(data);
-    $("out").scrollIntoView({ behavior: "smooth" });
-  } catch (err) {
-    st.className = "error"; st.textContent = err.message;
-  } finally { btn.disabled = false; }
+  const body = Object.fromEntries(["categoria", "formato", "jugadores", "nivel", "entrenos", "duracion", "contenidos", "notas"].map((k) => [k, $(k).value]));
+  const n = parseInt(body.entrenos) || 3;
+  btn.disabled = true; st.className = "";
+  st.textContent = "Creando tus entrenos. Irán apareciendo según estén listos (hasta 1 minuto)…";
+  $("out").innerHTML = `<div class="actions"><button class="ghost" onclick="window.print()">Imprimir o guardar PDF</button></div>
+    <div class="week"><h2>Semana: ${esc(body.contenidos)}</h2></div>` +
+    Array.from({ length: n }, (_, i) => `<article class="session" id="s${i}"><header><h3>Entreno ${i + 1}</h3><p>Preparando…</p></header></article>`).join("");
+  $("out").scrollIntoView({ behavior: "smooth" });
+
+  await Promise.all(Array.from({ length: n }, async (_, i) => {
+    try {
+      const r = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, sesion: i + 1, total: n }) });
+      const t = await r.text();
+      let d; try { d = JSON.parse(t); } catch { throw new Error("El servidor tardó demasiado. Pulsa de nuevo el botón."); }
+      if (!r.ok) throw new Error(d.error || "Error inesperado");
+      $("s" + i).outerHTML = sessionHTML(d, i);
+    } catch (err) {
+      $("s" + i).innerHTML = `<header><h3>Entreno ${i + 1}</h3><p>${esc(err.message)}</p></header>`;
+    }
+  }));
+  st.textContent = ""; btn.disabled = false;
 });
 </script>
 </body>
 </html>
-
